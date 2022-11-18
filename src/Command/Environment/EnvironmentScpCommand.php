@@ -61,8 +61,13 @@ class EnvironmentScpCommand extends CommandBase
 
         $selection = $this->selector->getSelection($input);
 
+<<<<<<< HEAD
         $container = $selection->getRemoteContainer();
         $sshUrl = $container->getSshUrl();
+=======
+        $container = $this->selectRemoteContainer($input);
+        $sshUrl = $container->getSshUrl($input->getOption('instance'));
+>>>>>>> 3.x
 
         $command = 'scp';
 

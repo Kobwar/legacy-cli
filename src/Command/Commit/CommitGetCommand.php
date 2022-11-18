@@ -43,9 +43,16 @@ class CommitGetCommand extends CommandBase
 
         $definition = $this->getDefinition();
 
+<<<<<<< HEAD
         $this->selector->addProjectOption($definition);
         $this->selector->addEnvironmentOption($definition);
         $this->propertyFormatter->configureInput($definition);
+=======
+        // Deprecated options, left for backwards compatibility
+        $this->addHiddenOption('format', null, InputOption::VALUE_REQUIRED, 'DEPRECATED');
+        $this->addHiddenOption('columns', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'DEPRECATED');
+        $this->addHiddenOption('no-header', null, InputOption::VALUE_NONE, 'DEPRECATED');
+>>>>>>> 3.x
 
         $this->addExample('Display the current commit on the environment');
         $this->addExample('Display the previous commit', 'HEAD~');

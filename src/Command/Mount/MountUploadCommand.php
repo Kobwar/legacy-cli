@@ -74,11 +74,21 @@ class MountUploadCommand extends CommandBase
      */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+<<<<<<< HEAD
         $container = $this->selector->getSelection($input)->getRemoteContainer();
         $mounts = $this->mountService->mountsFromConfig($container->getConfig());
+=======
+        $this->validateInput($input);
+
+        $container = $this->selectRemoteContainer($input);
+        /** @var \Platformsh\Cli\Service\Mount $mountService */
+        $mountService = $this->getService('mount');
+        $mounts = $mountService->mountsFromConfig($container->getConfig());
+        $sshUrl = $container->getSshUrl($input->getOption('instance'));
+>>>>>>> 3.x
 
         if (empty($mounts)) {
-            $this->stdErr->writeln(sprintf('No mounts found on host: <info>%s</info>', $container->getSshUrl()));
+            $this->stdErr->writeln(sprintf('No mounts found on host: <info>%s</info>', $sshUrl));
 
             return 1;
         }
@@ -179,7 +189,11 @@ class MountUploadCommand extends CommandBase
         }
 
         $this->stdErr->writeln('');
+<<<<<<< HEAD
         $this->rsync->syncUp($container->getSshUrl(), $source, $mountPath, $rsyncOptions);
+=======
+        $rsync->syncUp($sshUrl, $source, $mountPath, $rsyncOptions);
+>>>>>>> 3.x
 
         return 0;
     }

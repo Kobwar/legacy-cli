@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace Platformsh\Cli\Command;
 
-use Platformsh\Cli\Service\Config;
+use Platformsh\Cli\Console\HiddenInputOption;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -104,6 +105,33 @@ abstract class CommandBase extends Command implements MultiAwareInterface
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function getSynopsis($short = false)
+    {
+        static $cache = [];
+        $key = $short ? 'short' : 'long';
+
+        if (!isset($cache[$key])) {
+            $definition = clone $this->getDefinition();
+            $definition->setOptions(array_filter($definition->getOptions(), function (InputOption $opt) {
+                return !$opt instanceof HiddenInputOption;
+            }));
+
+            $aliases = $this->getVisibleAliases();
+            $name = $this->getName();
+            $shortName = count($aliases) === 1 ? reset($aliases) : $name;
+            $cache[$key] = trim(sprintf(
+                '%s %s',
+                $shortName,
+                $definition->getSynopsis($short)
+            ));
+        }
+
+        return $cache[$key];
+    }
+
+    /**
      * @param resource|int $descriptor
      *
      * @return bool
@@ -125,31 +153,5 @@ abstract class CommandBase extends Command implements MultiAwareInterface
         }
 
         return $description;
-    }
-
-    /**
-     * @return bool
-     */
-    protected function doesEnvironmentConflictWithCommandLine(InputInterface $input): bool {
-        $envPrefix = (new Config())->get('service.env_prefix'); // FIXME dependency injection
-        if ($input->hasOption('project')
-            && $input->getOption('project')
-            && getenv($envPrefix . 'PROJECT')
-            && getenv($envPrefix . 'PROJECT') !== $input->getOption('project')) {
-            return true;
-        }
-        if ($input->hasOption('environment')
-            && $input->getOption('environment')
-            && getenv($envPrefix . 'BRANCH')
-            && getenv($envPrefix . 'BRANCH') !== $input->getOption('environment')) {
-            return true;
-        }
-        if ($input->hasOption('app') && $input->getOption('app')
-            && getenv($envPrefix . 'APPLICATION_NAME')
-            && getenv($envPrefix . 'APPLICATION_NAME') !== $input->getOption('app')) {
-            return true;
-        }
-
-        return false;
     }
 }

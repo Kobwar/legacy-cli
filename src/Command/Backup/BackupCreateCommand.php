@@ -39,11 +39,19 @@ class BackupCreateCommand extends CommandBase
                 . "\n" . 'If set, this leaves the environment running and open to connections during the backup.'
                 . "\n" . 'This reduces downtime, at the risk of backing up data in an inconsistent state.'
             );
+<<<<<<< HEAD
         $definition = $this->getDefinition();
         $this->selector->addProjectOption($definition);
         $this->selector->addEnvironmentOption($definition);
         $this->activityService->configureInput($definition);
         $this->addOption('unsafe', null, InputOption::VALUE_NONE, 'Deprecated option: use --live instead');
+=======
+        $this->addProjectOption()
+             ->addEnvironmentOption()
+             ->addWaitOptions();
+        $this->addHiddenOption('unsafe', null, InputOption::VALUE_NONE, 'Deprecated option: use --live instead');
+        $this->setHiddenAliases(['snapshot:create', 'environment:backup']);
+>>>>>>> 3.x
         $this->addExample('Make a backup of the current environment');
         $this->addExample('Request a backup (and exit quickly)', '--no-wait');
         $this->addExample('Make a backup avoiding downtime (but risking inconsistency)', '--live');

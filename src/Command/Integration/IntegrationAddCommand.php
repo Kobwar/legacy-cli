@@ -57,7 +57,7 @@ class IntegrationAddCommand extends IntegrationCommandBase
 
         // Omit all empty, non-required fields when creating a new integration.
         foreach ($this->getForm()->getFields() as $name => $field) {
-            if (isset($values[$name]) && !$field->isRequired() && $field->isEmpty($values[$name])) {
+            if (array_key_exists($name, $values) && !$field->isRequired() && $field->isEmpty($values[$name])) {
                 unset($values[$name]);
             }
         }
@@ -70,7 +70,11 @@ class IntegrationAddCommand extends IntegrationCommandBase
                 "<comment>Warning:</comment> adding a '" . $values['type'] . "' integration will automatically synchronize code from the external Git repository."
                 . "\nThis means it can overwrite all the code in your project.\n"
             );
+<<<<<<< HEAD
             if (!$this->questionHelper->confirm('Are you sure you want to continue?', false)) {
+=======
+            if (!$questionHelper->confirm('Are you sure you want to continue?')) {
+>>>>>>> 3.x
                 return 1;
             }
         }

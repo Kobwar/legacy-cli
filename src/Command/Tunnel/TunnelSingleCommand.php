@@ -88,7 +88,11 @@ class TunnelSingleCommand extends CommandBase
                 $service['_relationship_name'],
                 $this->api->getEnvironmentLabel($environment, false)
             );
+<<<<<<< HEAD
             if (!$this->questionHelper->confirm($confirmText, false)) {
+=======
+            if (!$questionHelper->confirm($confirmText)) {
+>>>>>>> 3.x
                 return 1;
             }
             $this->stdErr->writeln('');

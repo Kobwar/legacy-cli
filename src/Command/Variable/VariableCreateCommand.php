@@ -72,6 +72,7 @@ class VariableCreateCommand extends CommandBase
     {
         $selection = $this->selector->getSelection($input, true);
 
+<<<<<<< HEAD
         // Set the default for the environment form field.
         if ($environmentField = $this->form->getField('environment')) {
             if ($selection->hasEnvironment()) {
@@ -83,6 +84,8 @@ class VariableCreateCommand extends CommandBase
             });
         }
 
+=======
+>>>>>>> 3.x
         // Merge the 'name' argument with the --name option.
         if ($input->getArgument('name')) {
             if ($input->getOption('name')) {

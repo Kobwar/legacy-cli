@@ -306,6 +306,11 @@ class Manager {
                 throw new \RuntimeException('Unable to find a credentials helper for this system (Gnome session not detected)');
             }
 
+            // Disable use of the secret-service helper inside a snap or Docker container.
+            if (getenv('SNAP_CONTEXT') !== false || getenv('container') !== false || getenv('DOCKER_IP') !== false || @file_exists('/.dockerenv')) {
+                throw new \RuntimeException("Unable to find a credentials helper for this system (secret-service doesn't work properly inside a container)");
+            }
+
             // The Linux helper needs "libsecret" to be installed.
             if (!$this->shell->execute('ldconfig --print-cache | grep -q libsecret')) {
                 throw new \RuntimeException('Unable to find a credentials helper for this system (libsecret is not installed)');

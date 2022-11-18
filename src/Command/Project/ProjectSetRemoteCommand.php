@@ -113,7 +113,11 @@ class ProjectSetRemoteCommand extends CommandBase
                 $this->stdErr->writeln(sprintf('These Git remote(s) will be deleted: <comment>%s</comment>', \implode(', ', \array_keys($gitRemotes))));
             }
             $this->stdErr->writeln('');
+<<<<<<< HEAD
             if (!$this->questionHelper->confirm('Are you sure?', false)) {
+=======
+            if (!$questionHelper->confirm('Are you sure?')) {
+>>>>>>> 3.x
                 return 1;
             }
             foreach (array_keys($gitRemotes) as $gitRemote) {

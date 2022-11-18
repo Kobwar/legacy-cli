@@ -30,6 +30,7 @@ class DbSizeCommand extends CommandBase
     const BYTE_TO_MEGABYTE = 1048576;
     const WASTED_SPACE_WARNING_THRESHOLD = 200;//percentage
 
+<<<<<<< HEAD
     private $api;
     private $config;
     private $questionHelper;
@@ -55,6 +56,27 @@ class DbSizeCommand extends CommandBase
         $this->ssh = $ssh;
         $this->table = $table;
         parent::__construct();
+=======
+    const ESTIMATE_WARNING = 'This is an estimate of the database disk usage. The real size on disk is usually higher because of overhead.';
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function configure() {
+        $this->setName('db:size')
+            ->setDescription('Estimate the disk usage of a database')
+            ->addOption('bytes', 'B', InputOption::VALUE_NONE, 'Show sizes in bytes.')
+            ->addOption('cleanup', 'C', InputOption::VALUE_NONE, 'Check if tables can be cleaned up and show me recommendations (InnoDb only).');
+        $help = self::ESTIMATE_WARNING;
+        if ($this->config()->getWithDefault('api.metrics', false)) {
+            $help .= "\n\n" . \sprintf('To see more accurate disk usage, run: <info>%s disk</info>', $this->config()->get('application.executable'));
+        }
+        $this->setHelp($help);
+        $this->addProjectOption()->addEnvironmentOption()->addAppOption();
+        Relationships::configureInput($this->getDefinition());
+        Table::configureInput($this->getDefinition());
+        Ssh::configureInput($this->getDefinition());
+>>>>>>> 3.x
     }
 
     /**
@@ -124,7 +146,7 @@ class DbSizeCommand extends CommandBase
         $this->showInaccessibleSchemas($service, $database);
 
         if ($database['scheme'] === 'mysql' && $estimatedUsage > 0 && $input->getOption('cleanup')) {
-            $this->checkInnoDbTablesInNeedOfOptimizing($host, $database);
+            $this->checkInnoDbTablesInNeedOfOptimizing($host, $database, $input);
         }
 
         return 0;
@@ -155,12 +177,13 @@ class DbSizeCommand extends CommandBase
     /**
      * Displays a list of InnoDB tables that can be usefully cleaned up.
      *
-     * @param HostInterface $host
-     * @param array         $database
+     * @param HostInterface  $host
+     * @param array          $database
+     * @param InputInterface $input
      *
      * @return void
      */
-    private function checkInnoDbTablesInNeedOfOptimizing($host, array $database) {
+    private function checkInnoDbTablesInNeedOfOptimizing($host, array $database, InputInterface $input) {
         $tablesNeedingCleanup = $host->runCommand($this->getMysqlCommand($database), true, true, $this->mysqlTablesInNeedOfOptimizing());
         $queries = [];
         if (is_string($tablesNeedingCleanup)) {
@@ -185,7 +208,13 @@ class DbSizeCommand extends CommandBase
         $this->stdErr->writeln("Only run these when you know what you're doing.");
         $this->stdErr->writeln('');
 
+<<<<<<< HEAD
         if ($this->questionHelper->confirm('Do you want to run these queries now?', false)) {
+=======
+        /** @var \Platformsh\Cli\Service\QuestionHelper $questionHelper */
+        $questionHelper = $this->getService('question_helper');
+        if ($input->isInteractive() && $questionHelper->confirm('Do you want to run these queries now?', false)) {
+>>>>>>> 3.x
             $mysqlCommand = $this->getMysqlCommand($database);
             foreach ($queries as $query) {
                 $this->stdErr->write($query);
@@ -236,9 +265,19 @@ class DbSizeCommand extends CommandBase
             $this->stdErr->writeln('Databases tend to need extra space for starting up and temporary storage when running large queries.');
             $this->stdErr->writeln(sprintf('Please increase the allocated space in %s', $this->config->get('service.project_config_dir') . '/services.yaml'));
         }
-        $this->stdErr->writeln('');
-        $this->stdErr->writeln('<options=bold;fg=yellow>Warning</>');
-        $this->stdErr->writeln("This is an estimate of the database's disk usage. It does not represent its real size on disk.");
+
+        if ($this->config()->getWithDefault('api.metrics', false)
+            && ($data = $this->getSelectedEnvironment()->getData())
+            && isset($data['_links']['#metrics'])) {
+            $this->stdErr->writeln('');
+            $this->stdErr->writeln('<options=bold;fg=yellow>Notice</>');
+            $this->stdErr->writeln('This environment supports the Metrics API');
+            $this->stdErr->writeln(\sprintf('You can see disk usage much more accurately by running: <info>%s disk</info>', $this->config()->get('application.executable')));
+        } else {
+            $this->stdErr->writeln('');
+            $this->stdErr->writeln('<options=bold;fg=yellow>Warning</>');
+            $this->stdErr->writeln(self::ESTIMATE_WARNING);
+        }
     }
 
     /**
@@ -274,7 +313,13 @@ class DbSizeCommand extends CommandBase
     }
 
     private function getMongoDbCommand(array $database) {
+<<<<<<< HEAD
         $dbUrl = $this->relationships->getDbCommandArgs('mongo', $database);
+=======
+        /** @var \Platformsh\Cli\Service\Relationships $relationships */
+        $relationships = $this->getService('relationships');
+        $dbUrl = $relationships->getDbCommandArgs('mongo', $database);
+>>>>>>> 3.x
 
         return sprintf(
             'mongo %s --quiet --eval %s',

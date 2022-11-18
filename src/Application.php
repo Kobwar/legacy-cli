@@ -7,6 +7,8 @@ use Doctrine\Common\Cache\CacheProvider;
 use Platformsh\Cli\Command\WelcomeCommand;
 use Platformsh\Cli\Console\EventSubscriber;
 use Platformsh\Cli\Local\LocalProject;
+use Platformsh\Cli\Command\MultiAwareInterface;
+use Platformsh\Cli\Console\HiddenInputOption;
 use Platformsh\Cli\Service\Config;
 use Platformsh\Cli\Service\LegacyMigration;
 use Platformsh\Cli\Service\SelfUpdateChecker;
@@ -42,6 +44,9 @@ class Application extends ParentApplication
 
     /** @var string */
     private $envPrefix;
+
+    /** @var bool */
+    private $runningViaMulti = false;
 
     public function __construct(Config $config = null)
     {
@@ -155,15 +160,24 @@ class Application extends ParentApplication
      */
     protected function getDefaultInputDefinition()
     {
-        // We remove the confusing `--ansi` and `--no-ansi` options.
         return new InputDefinition([
             new InputArgument('command', InputArgument::REQUIRED, 'The command to execute'),
             new InputOption('--help', '-h', InputOption::VALUE_NONE, 'Display this help message'),
-            new InputOption('--quiet', '-q', InputOption::VALUE_NONE, 'Do not output any message'),
             new InputOption('--verbose', '-v|vv|vvv', InputOption::VALUE_NONE, 'Increase the verbosity of messages'),
             new InputOption('--version', '-V', InputOption::VALUE_NONE, 'Display this application version'),
-            new InputOption('--yes', '-y', InputOption::VALUE_NONE, 'Answer "yes" to any yes/no questions; disable interaction'),
-            new InputOption('--no', '-n', InputOption::VALUE_NONE, 'Answer "no" to any yes/no questions; disable interaction'),
+            new InputOption('--yes', '-y', InputOption::VALUE_NONE, 'Answer "yes" to confirmation questions; accept the default value for other questions; disable interaction'),
+            new InputOption(
+                '--no-interaction',
+                null,
+                InputOption::VALUE_NONE,
+                'Do not ask any interactive questions; accept default values. '
+                . sprintf('Equivalent to using the environment variable: <comment>%sNO_INTERACTION=1</comment>', $this->envPrefix)
+            ),
+            new HiddenInputOption('--ansi', '', InputOption::VALUE_NONE, 'Force ANSI output'),
+            new HiddenInputOption('--no-ansi', '', InputOption::VALUE_NONE, 'Disable ANSI output'),
+            // TODO deprecate the following options?
+            new HiddenInputOption('--no', '-n', InputOption::VALUE_NONE, 'Answer "no" to confirmation questions; accept the default value for other questions; disable interaction'),
+            new HiddenInputOption('--quiet', '-q', InputOption::VALUE_NONE, 'Do not output any message'),
         ]);
     }
 
@@ -213,6 +227,7 @@ class Application extends ParentApplication
 
         // Set the input to non-interactive if the yes or no options are used,
         // or if the PLATFORMSH_CLI_NO_INTERACTION variable is not empty.
+        // The --no-interaction option is handled in the parent method.
         if ($input->hasParameterOption(['--yes', '-y', '--no', '-n'])
           || getenv($this->envPrefix . 'NO_INTERACTION')) {
             $input->setInteractive(false);
@@ -256,6 +271,9 @@ class Application extends ParentApplication
     protected function doRunCommand(ConsoleCommand $command, InputInterface $input, OutputInterface $output)
     {
         $this->setCurrentCommand($command);
+        if ($command instanceof MultiAwareInterface) {
+            $command->setRunningViaMulti($this->runningViaMulti);
+        }
 
         // Build the command synopsis early, so it doesn't include default
         // options and arguments (such as --help and <command>).
@@ -334,5 +352,10 @@ class Application extends ParentApplication
             ), OutputInterface::VERBOSITY_QUIET);
             $output->writeln('', OutputInterface::VERBOSITY_QUIET);
         }
+    }
+
+    public function setRunningViaMulti()
+    {
+        $this->runningViaMulti = true;
     }
 }

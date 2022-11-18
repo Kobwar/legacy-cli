@@ -491,50 +491,6 @@ class Api
     }
 
     /**
-     * Return the user's projects.
-     *
-     * @param bool|null $refresh Whether to refresh the list of projects.
-     *
-     * @return Project[] The user's projects, keyed by project ID.
-     */
-    public function getProjects(?bool $refresh = null)
-    {
-        $cacheKey = sprintf('%s:projects', $this->config->getSessionId());
-
-        /** @var Project[] $projects */
-        $projects = [];
-
-        $cached = $this->cache->fetch($cacheKey);
-
-        if ($refresh === false && !$cached) {
-            return [];
-        } elseif ($refresh || !$cached) {
-            foreach ($this->getClient()->getProjects() as $project) {
-                $projects[$project->id] = $project;
-            }
-
-            $cachedProjects = [];
-            foreach ($projects as $id => $project) {
-                $cachedProjects[$id] = $project->getData();
-                $cachedProjects[$id]['_endpoint'] = $project->getUri(true);
-            }
-
-            $this->cache->save($cacheKey, $cachedProjects, (int) $this->config->get('api.projects_ttl'));
-        } else {
-            $guzzleClient = $this->getHttpClient();
-            $apiUrl = $this->config->getWithDefault('api.base_url', '');
-            foreach ((array) $cached as $id => $data) {
-                $projects[$id] = new Project($data, $data['_endpoint'], $guzzleClient);
-                if ($apiUrl) {
-                    $projects[$id]->setApiUrl($apiUrl);
-                }
-            }
-        }
-
-        return $projects;
-    }
-
-    /**
      * Returns the logged-in user's project stubs.
      *
      * @param bool $refresh
@@ -552,8 +508,7 @@ class Api
         if ($refresh === false && !$cached) {
             return [];
         } elseif ($refresh || !$cached) {
-            $data = $this->getClient()->getAccountInfo($refresh);
-            $stubs = ProjectStub::wrapCollection($data, $apiUrl, $guzzleClient);
+            $stubs = $this->getClient()->getProjectStubs((bool) $refresh);
             $cacheData = [
                 'projects' => array_map(function (ProjectStub $stub) { return $stub->getData(); }, $stubs)
             ];
@@ -569,28 +524,22 @@ class Api
      * Return the user's project with the given ID.
      *
      * @param string      $id      The project ID.
-     * @param string|null $host    The project's hostname.
+     * @param string|null $host    The project's hostname. @deprecated no longer used if an api.base_url is configured.
      * @param bool|null   $refresh Whether to bypass the cache.
      *
      * @return Project|false
      */
     public function getProject(string $id, ?string $host = null, ?bool $refresh = null)
     {
-        // Find the project in the user's main project list. This uses a
-        // separate cache.
-        $projects = $this->getProjects($refresh);
-        if (isset($projects[$id]) && !$this->hostConflicts($projects[$id], $host)) {
-            $project = $projects[$id];
-            if ($apiUrl = $this->config->getWithDefault('api.base_url', '')) {
-                $project->setApiUrl($apiUrl);
-            }
-
-            return $project;
-        }
-
-        // Find the project directly.
         $cacheKey = sprintf('%s:project:%s:%s', $this->config->getSessionId(), $id, $host);
         $cached = $this->cache->fetch($cacheKey);
+
+        // Ignore the $host if an api.base_url is configured.
+        $apiUrl = $this->config->getWithDefault('api.base_url', '');
+        if ($apiUrl !== '') {
+            $host = null;
+        }
+
         if ($refresh || !$cached) {
             $scheme = 'https';
             if ($host !== null && (($pos = strpos($host, '//')) !== false)) {
@@ -618,26 +567,6 @@ class Api
         }
 
         return $project;
-    }
-
-    /**
-     * Checks whether a project matches the given hostname.
-     *
-     * Used to validate whether a project cached against an ID has a
-     * conflicting hostname (IDs can be the same on different hosts).
-     *
-     * @param Project $project
-     * @param string|null $host
-     *
-     * @return bool
-     */
-    private function hostConflicts(Project $project, $host)
-    {
-        if ($host !== null && $project->hasProperty('endpoint', false)) {
-            $projectHost = \parse_url($project->getProperty('endpoint', true, false), PHP_URL_HOST);
-            return \stripos($projectHost, $host) === false;
-        }
-        return false;
     }
 
     /**
@@ -927,7 +856,7 @@ class Api
      */
     public function clearProjectsCache(): void
     {
-        $this->cache->delete(sprintf('%s:projects', $this->config->getSessionId()));
+        $this->cache->delete(sprintf('%s:project-stubs', $this->config->getSessionId()));
         $this->cache->delete(sprintf('%s:my-account', $this->config->getSessionId()));
     }
 
@@ -1049,12 +978,12 @@ class Api
     /**
      * Returns a project label.
      *
-     * @param Project      $project
+     * @param Project|ProjectStub $project
      * @param string|false $tag
      *
      * @return string
      */
-    public function getProjectLabel(Project $project, $tag = 'info'): string
+    public function getProjectLabel(ApiResourceBase $project, $tag = 'info'): string
     {
         $title = $project->title;
         $pattern = strlen($title) > 0 ? '%2$s (%3$s)' : '%3$s';

@@ -5,7 +5,12 @@ namespace Platformsh\Cli\Command;
 
 use Platformsh\Cli\Local\ApplicationFinder;
 use Platformsh\Cli\Service\Api;
+<<<<<<< HEAD
 use Platformsh\Cli\Service\Selector;
+=======
+use Platformsh\Client\Model\Project;
+use Platformsh\Client\Model\ProjectStub;
+>>>>>>> 3.x
 use Stecman\Component\Symfony\Console\BashCompletion\Completion;
 use Stecman\Component\Symfony\Console\BashCompletion\Completion\CompletionInterface;
 use Stecman\Component\Symfony\Console\BashCompletion\CompletionCommand as ParentCompletionCommand;
@@ -21,7 +26,11 @@ class CompletionCommand extends ParentCompletionCommand
      * A list of the user's projects.
      * @var array
      */
+<<<<<<< HEAD
     private $projects = [];
+=======
+    protected $projectStubs = [];
+>>>>>>> 3.x
 
     public function __construct(Selector $selector, Api $api)
     {
@@ -36,8 +45,14 @@ class CompletionCommand extends ParentCompletionCommand
      */
     protected function runCompletion()
     {
+<<<<<<< HEAD
         $this->projects = $this->api->isLoggedIn() ? $this->api->getProjects(false) : [];
         $projectIds = array_keys($this->projects);
+=======
+        $this->api = new Api();
+        $this->projectStubs = $this->api->isLoggedIn() ? $this->api->getProjectStubs(false) : [];
+        $projectIds = array_map(function (ProjectStub $ps) { return $ps->id; }, $this->projectStubs);
+>>>>>>> 3.x
 
         $this->handler->addHandlers([
             new Completion(
@@ -253,20 +268,14 @@ class CompletionCommand extends ParentCompletionCommand
      */
     protected function getProject()
     {
-        if (!$this->projects) {
-            return false;
-        }
-
         $commandLine = $this->handler->getContext()
             ->getCommandLine();
         $currentProjectId = $this->getProjectIdFromCommandLine($commandLine);
         if (!$currentProjectId && ($currentProject = $this->selector->getCurrentProject())) {
             return $currentProject;
-        } elseif (isset($this->projects[$currentProjectId])) {
-            return $this->projects[$currentProjectId];
         }
 
-        return false;
+        return $this->api->getProject($currentProjectId, null, false);
     }
 
     /**

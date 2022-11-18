@@ -168,7 +168,29 @@ abstract class IntegrationCommandBase extends CommandBase
             }
         }
 
+        // Process syslog integer values.
+        foreach (['facility', 'port'] as $key) {
+            if (isset($values[$key])) {
+                $values[$key] = (int) $values[$key];
+            }
+        }
+
         return $values;
+    }
+
+    /**
+     * Returns a list of integration capability information on the selected project, if any.
+     *
+     * @return array
+     */
+    private function selectedProjectIntegrations()
+    {
+        static $cache = [];
+        $project = $this->getSelectedProject();
+        if (!isset($cache[$project->id])) {
+            $cache[$project->id] = $project->hasLink('#capabilities') ? $project->getCapabilities()->integrations : [];
+        }
+        return $cache[$project->id];
     }
 
     /**
@@ -176,23 +198,54 @@ abstract class IntegrationCommandBase extends CommandBase
      */
     private function getFields()
     {
+        $allSupportedTypes = [
+            'bitbucket',
+            'bitbucket_server',
+            'github',
+            'gitlab',
+            'webhook',
+            'health.email',
+            'health.pagerduty',
+            'health.slack',
+            'health.webhook',
+            'script',
+            'newrelic',
+            'splunk',
+            'sumologic',
+            'syslog',
+        ];
+
         return [
             'type' => new OptionsField('Integration type', [
                 'optionName' => 'type',
                 'description' => 'The integration type',
                 'questionLine' => '',
-                'options' => [
-                    'bitbucket',
-                    'bitbucket_server',
-                    'github',
-                    'gitlab',
-                    'webhook',
-                    'health.email',
-                    'health.pagerduty',
-                    'health.slack',
-                    'health.webhook',
-                    'script',
-                ],
+                'options' => $allSupportedTypes,
+                'validator' => function ($value) use ($allSupportedTypes) {
+                    // If the type isn't supported at all, fall back to the default validator.
+                    if (!in_array($value, $allSupportedTypes, true)) {
+                        return null;
+                    }
+                    // If the type is supported, check if it is available on the project.
+                    if ($this->hasSelectedProject()) {
+                        $integrations = $this->selectedProjectIntegrations();
+                        if (!empty($integrations['enabled']) && empty($integrations['config'][$value]['enabled'])) {
+                            return "The integration type '$value' is not available on this project.";
+                        }
+                    }
+                    return null;
+                },
+                'optionsCallback' => function () use ($allSupportedTypes) {
+                    if ($this->hasSelectedProject()) {
+                        $integrations = $this->selectedProjectIntegrations();
+                        if (!empty($integrations['enabled']) && !empty($integrations['config'])) {
+                            return array_filter($allSupportedTypes, function ($type) use ($integrations) {
+                                return !empty($integrations['config'][$type]['enabled']);
+                            });
+                        }
+                    }
+                    return $allSupportedTypes;
+                },
             ]),
             'base_url' => new UrlField('Base URL', [
                 'conditions' => ['type' => [
@@ -213,8 +266,9 @@ abstract class IntegrationCommandBase extends CommandBase
                     'gitlab',
                     'health.slack',
                     'bitbucket_server',
+                    'splunk',
                 ]],
-                'description' => 'An access token for the integration',
+                'description' => 'An authentication or access token for the integration',
             ]),
             'key' => new Field('OAuth consumer key', [
                 'optionName' => 'key',
@@ -231,6 +285,12 @@ abstract class IntegrationCommandBase extends CommandBase
                 ]],
                 'description' => 'A Bitbucket OAuth consumer secret',
                 'valueKeys' => ['app_credentials', 'secret'],
+            ]),
+            'license_key' => new Field('License key', [
+                'conditions' => ['type' => [
+                    'newrelic',
+                ]],
+                'description' => 'The New Relic Logs license key',
             ]),
             'project' => new Field('Project', [
                 'optionName' => 'server-project',
@@ -361,10 +421,12 @@ abstract class IntegrationCommandBase extends CommandBase
             'url' => new UrlField('URL', [
                 'conditions' => ['type' => [
                     'health.webhook',
+                    'newrelic',
+                    'sumologic',
+                    'splunk',
                     'webhook',
                 ]],
-                'description' => 'Webhook: a URL to receive JSON data',
-                'questionLine' => 'What is the webhook URL (to which JSON data will be posted)?',
+                'description' => 'The URL or API endpoint for the integration',
             ]),
             'shared_key' => new Field('Shared key', [
                 'conditions' => ['type' => [
@@ -467,6 +529,84 @@ abstract class IntegrationCommandBase extends CommandBase
                     'health.pagerduty',
                 ]],
                 'description' => 'The PagerDuty routing key',
+            ]),
+            'category' => new Field('Category', [
+                'conditions' => ['type' => 'sumologic'],
+                'description' => 'The Sumo Logic category, used for filtering',
+                'required' => false,
+                'normalizer' => function ($val) { return (string) $val; },
+            ]),
+            'index' => new Field('Index', [
+                'conditions' => ['type' => 'splunk'],
+                'description' => 'The Splunk index',
+            ]),
+            'sourcetype' => new Field('Source type', [
+                'optionName' => 'sourcetype',
+                'conditions' => ['type' => 'splunk'],
+                'description' => 'The Splunk event source type',
+                'required' => false,
+            ]),
+            'protocol' => new OptionsField('Protocol', [
+                'conditions' => ['type' => ['syslog']],
+                'description' => 'Syslog transport protocol',
+                'required' => false,
+                'default' => 'tls',
+                'options' => ['tcp', 'udp', 'tls'],
+            ]),
+            'host' => new Field('Host', [
+                'optionName' => 'syslog-host',
+                // N.B. syslog is an actual PHP function name so this is wrapped in extra array brackets, to avoid is_callable() passing
+                'conditions' => ['type' => ['syslog']],
+                'description' => 'Syslog relay/collector host',
+                'autoCompleterValues' => ['localhost'],
+            ]),
+            'port' => new Field('Port', [
+                'optionName' => 'syslog-port',
+                'conditions' => ['type' => ['syslog']],
+                'description' => 'Syslog relay/collector port',
+                'autoCompleterValues' => ['6514'],
+                'validator' => function ($value) { return is_numeric($value) && $value >= 0 && $value <= 65535 ? true : "Invalid port number: $value"; },
+            ]),
+            'facility' => new Field('Facility', [
+                'conditions' => ['type' => ['syslog']],
+                'description' => 'Syslog facility',
+                'default' => 1,
+                'required' => false,
+                'avoidQuestion' => true,
+                'validator' => function ($value) { return is_numeric($value) && $value >= 0 && $value <= 23 ? true : "Invalid syslog facility code: $value"; },
+            ]),
+            'message_format' => new OptionsField('Message format', [
+                'conditions' => ['type' => ['syslog']],
+                'description' => 'Syslog message format',
+                'options' => ['rfc3164' => 'RFC 3164', 'rfc5424' => 'RFC 5424'],
+                'default' => 'rfc5424',
+                'required' => false,
+                'avoidQuestion' => true,
+            ]),
+            'auth_mode' => new OptionsField('Authentication mode', [
+                'conditions' => ['type' => ['syslog']],
+                'optionName' => 'auth-mode',
+                'required' => false,
+                'options' => ['prefix', 'structured_data'],
+                'default' => 'prefix',
+            ]),
+            'auth_token' => new Field('Authentication token', [
+                'conditions' => ['type' => ['syslog']],
+                'optionName' => 'auth-token',
+                'required' => false,
+            ]),
+            'tls_verify' => new BooleanField('Verify TLS', [
+                'conditions' => ['type' => [
+                    'newrelic',
+                    'splunk',
+                    'sumologic',
+                    'syslog',
+                ]],
+                'description' => 'Whether HTTPS certificate verification should be enabled (recommended)',
+                'questionLine' => 'Should HTTPS certificate verification be enabled (recommended)',
+                'default' => true,
+                'required' => false,
+                'avoidQuestion' => true,
             ]),
         ];
     }

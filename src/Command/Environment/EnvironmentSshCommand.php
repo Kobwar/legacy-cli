@@ -72,8 +72,13 @@ class EnvironmentSshCommand extends CommandBase
             return 0;
         }
 
+<<<<<<< HEAD
         $container = $this->selector->getSelection($input)->getRemoteContainer();
         $sshUrl = $container->getSshUrl();
+=======
+        $container = $this->selectRemoteContainer($input);
+        $sshUrl = $container->getSshUrl($input->getOption('instance'));
+>>>>>>> 3.x
 
         if ($input->getOption('pipe')) {
             $output->write($sshUrl);
